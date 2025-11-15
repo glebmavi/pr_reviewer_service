@@ -1,0 +1,30 @@
+﻿version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - revive
+    - gocyclo
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - govet
+  settings:
+    gocyclo:
+      min-complexity: 15
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/glebmavi/pr_reviewer_service
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
