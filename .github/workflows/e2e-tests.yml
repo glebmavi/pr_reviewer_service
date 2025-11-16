@@ -17,6 +17,9 @@ jobs:
           go-version: '1.25'
           cache: true
 
+      - name: Install dependencies
+        run: make deps
+
       - name: Run lint-fix
         run: make lint-fix
 
