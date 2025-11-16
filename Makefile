@@ -1,9 +1,10 @@
-.PHONY: help generate lint build-docker up down test deps docker-check test-coverage ci
+.PHONY: help generate lint lint-fix build-docker up down test deps docker-check test-coverage ci
 
 help:
 	@echo "Доступные команды:"
 	@echo "  generate      - Сгенерировать Go-код из openapi.yml и .sql файлов"
 	@echo "  lint          - Запустить линтер golangci-lint"
+	@echo "  lint-fix      - Запустить линтер golangci-lint с автоматическим исправлением"
 	@echo "  build-docker  - Собрать docker-образы с помощью docker-compose"
 	@echo "  up            - Собрать и запустить docker-контейнеры"
 	@echo "  down          - Остановить docker-контейнеры"
@@ -40,6 +41,10 @@ down:
 lint:
 	@echo "==> Запуск линтера (golangci-lint)..."
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2 run ./... --config .golangci.yml
+
+lint-fix:
+	@echo "==> Запуск линтера с исправлением (golangci-lint)..."
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2 run ./... --fix --config .golangci.yml
 
 deps: ## Загрузка Go зависимостей
 	go mod download
