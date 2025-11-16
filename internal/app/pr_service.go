@@ -118,7 +118,7 @@ func (s *PullRequestService) MergePR(ctx context.Context, prID string) (*domain.
 		return nil, err
 	}
 
-	if !pr.CanChangeReviewers() {
+	if !pr.IsOpen() {
 		return nil, domain.ErrPRMerged
 	}
 
@@ -187,7 +187,7 @@ func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, 
 }
 
 func (s *PullRequestService) validateReassignment(pr *domain.PullRequest, oldUserID string) error {
-	if !pr.CanChangeReviewers() {
+	if !pr.IsOpen() {
 		return domain.ErrPRMerged
 	}
 

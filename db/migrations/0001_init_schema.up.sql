@@ -33,3 +33,29 @@ CREATE INDEX idx_users_team_id ON users(team_id);
 CREATE INDEX idx_pr_author_id ON pull_requests(author_id);
 CREATE INDEX idx_pr_status ON pull_requests(status);
 CREATE INDEX idx_assignments_user_id ON review_assignments(user_id);
+
+CREATE INDEX idx_users_team_active_userid
+    ON users (team_id, user_id)
+    WHERE is_active;
+
+CREATE INDEX idx_users_teamid_isactive
+    ON users (team_id, is_active);
+
+CREATE INDEX idx_ra_userid_prid
+    ON review_assignments (user_id, pr_id);
+
+CREATE INDEX idx_ra_prid
+    ON review_assignments (pr_id);
+
+CREATE INDEX idx_pr_status_prid_incl
+    ON pull_requests (status, pr_id)
+    INCLUDE (author_id, created_at, merged_at);
+
+CREATE INDEX idx_pr_author_status
+    ON pull_requests (author_id, status);
+
+CREATE INDEX idx_ra_userid_only
+    ON review_assignments (user_id);
+
+CREATE INDEX idx_users_teamid_userid
+    ON users (team_id, user_id);

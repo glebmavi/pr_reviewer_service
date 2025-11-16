@@ -525,6 +525,8 @@ paths:
                   author_id: u1
                   status: OPEN
                   assigned_reviewers: [u2, u3]
+                  createdAt: 2025-10-24T12:34:56Z
+                  mergedAt: null
         '404':
           description: Автор/команда не найдены
           content:

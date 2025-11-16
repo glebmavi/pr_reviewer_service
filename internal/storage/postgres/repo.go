@@ -56,9 +56,9 @@ func (r *Repository) CreateTeam(ctx context.Context, tx pgx.Tx, team *domain.Tea
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			return nil, fmt.Errorf("%w: team '%s'", domain.ErrPRExists, team.TeamName)
+			return nil, fmt.Errorf("%w: team '%s'", domain.ErrTeamExists, team.TeamName)
 		}
-		return nil, fmt.Errorf("failed to create team: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.Team{ID: dbTeam.TeamID, TeamName: dbTeam.TeamName, IsActive: dbTeam.IsActive}, nil
 }
@@ -70,7 +70,7 @@ func (r *Repository) GetTeamByName(ctx context.Context, teamName string) (*domai
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: team '%s'", domain.ErrNotFound, teamName)
 		}
-		return nil, fmt.Errorf("failed to get team by name: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.Team{ID: dbTeam.TeamID, TeamName: dbTeam.TeamName, IsActive: dbTeam.IsActive}, nil
 }
@@ -82,7 +82,7 @@ func (r *Repository) GetTeamByID(ctx context.Context, teamID int32) (*domain.Tea
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: team with id '%d'", domain.ErrNotFound, teamID)
 		}
-		return nil, fmt.Errorf("failed to get team by id: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.Team{ID: dbTeam.TeamID, TeamName: dbTeam.TeamName, IsActive: dbTeam.IsActive}, nil
 }
@@ -103,9 +103,9 @@ func (r *Repository) UpdateTeam(ctx context.Context, tx pgx.Tx, oldTeamName, new
 		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			return nil, fmt.Errorf("%w: team '%s'", domain.ErrPRExists, newTeamName)
+			return nil, fmt.Errorf("%w: team '%s'", domain.ErrTeamExists, newTeamName)
 		}
-		return nil, fmt.Errorf("failed to update team name: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.Team{ID: dbTeam.TeamID, TeamName: dbTeam.TeamName, IsActive: dbTeam.IsActive}, nil
 }
@@ -117,7 +117,7 @@ func (r *Repository) DeactivateTeam(ctx context.Context, tx pgx.Tx, teamName str
 		return err
 	}
 	if _, err := q.DeactivateTeam(ctx, team.ID); err != nil {
-		return fmt.Errorf("failed to deactivate team: %w", err)
+		return domain.ErrInternalError
 	}
 	return nil
 }
@@ -135,9 +135,9 @@ func (r *Repository) CreateUser(ctx context.Context, tx pgx.Tx, user *domain.Use
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			return nil, fmt.Errorf("%w: user '%s'", domain.ErrPRExists, user.ID)
+			return nil, fmt.Errorf("%w: user '%s'", domain.ErrValidation, user.ID)
 		}
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.User{ID: dbUser.UserID, Username: dbUser.Username, TeamID: dbUser.TeamID, IsActive: dbUser.IsActive}, nil
 }
@@ -149,7 +149,7 @@ func (r *Repository) GetUserByID(ctx context.Context, userID string) (*domain.Us
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: user '%s'", domain.ErrNotFound, userID)
 		}
-		return nil, fmt.Errorf("failed to get user by id: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.User{ID: dbUser.UserID, Username: dbUser.Username, TeamID: dbUser.TeamID, TeamName: dbUser.TeamName, IsActive: dbUser.IsActive}, nil
 }
@@ -158,7 +158,7 @@ func (r *Repository) GetUsersByTeam(ctx context.Context, teamID int32) ([]domain
 	q := r.querier(nil)
 	dbUsers, err := q.GetTeamMembers(ctx, teamID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get team members: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	users := make([]domain.User, len(dbUsers))
 	for i, u := range dbUsers {
@@ -179,7 +179,7 @@ func (r *Repository) UpdateUser(ctx context.Context, tx pgx.Tx, user *domain.Use
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: user '%s'", domain.ErrNotFound, user.ID)
 		}
-		return nil, fmt.Errorf("failed to update user: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.User{ID: dbUser.UserID, Username: dbUser.Username, TeamID: dbUser.TeamID, IsActive: dbUser.IsActive}, nil
 }
@@ -194,7 +194,7 @@ func (r *Repository) SetUserActiveStatus(ctx context.Context, tx pgx.Tx, userID 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: user '%s'", domain.ErrNotFound, userID)
 		}
-		return nil, fmt.Errorf("failed to set user active status: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	user, err := r.GetUserByID(ctx, dbUser.UserID)
 	if err != nil {
@@ -213,7 +213,7 @@ func (r *Repository) MoveUserToTeam(ctx context.Context, tx pgx.Tx, userID strin
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: user '%s'", domain.ErrNotFound, userID)
 		}
-		return nil, fmt.Errorf("failed to move user to team: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.User{ID: dbUser.UserID, Username: dbUser.Username, TeamID: dbUser.TeamID, IsActive: dbUser.IsActive}, nil
 }
@@ -222,7 +222,7 @@ func (r *Repository) DeactivateUsersByTeam(ctx context.Context, tx pgx.Tx, teamI
 	q := r.querier(tx)
 	userIDs, err := q.DeactivateUsersByTeam(ctx, teamID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to deactivate users by team: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return userIDs, nil
 }
@@ -236,7 +236,7 @@ func (r *Repository) FindReviewCandidates(ctx context.Context, teamID int32, aut
 		Limit:   int32(limit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to find review candidates: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	users := make([]domain.User, len(dbUsers))
 	for i, u := range dbUsers {
@@ -256,10 +256,15 @@ func (r *Repository) CreatePR(ctx context.Context, tx pgx.Tx, pr *domain.PullReq
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation {
-			return nil, fmt.Errorf("%w: author '%s'", domain.ErrNotFound, pr.AuthorID)
+		if errors.As(err, &pgErr) {
+			switch pgErr.Code {
+			case pgerrcode.UniqueViolation:
+				return nil, fmt.Errorf("%w: PR '%s'", domain.ErrPRExists, pr.ID)
+			case pgerrcode.ForeignKeyViolation:
+				return nil, fmt.Errorf("%w: author '%s'", domain.ErrNotFound, pr.AuthorID)
+			}
 		}
-		return nil, fmt.Errorf("failed to create pr: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	return &domain.PullRequest{ID: dbPR.PrID, Name: dbPR.PrName, AuthorID: dbPR.AuthorID, Status: domain.PRStatus(dbPR.Status), CreatedAt: dbPR.CreatedAt.Time}, nil
 }
@@ -271,7 +276,7 @@ func (r *Repository) GetPRByID(ctx context.Context, prID string) (*domain.PullRe
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: PR '%s'", domain.ErrNotFound, prID)
 		}
-		return nil, fmt.Errorf("failed to get pr by id: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	pr := &domain.PullRequest{
 		ID:        dbPR.PrID,
@@ -293,13 +298,27 @@ func (r *Repository) MergePR(ctx context.Context, tx pgx.Tx, prID string) (*doma
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("%w: PR '%s'", domain.ErrNotFound, prID)
 		}
-		return nil, fmt.Errorf("failed to merge pr: %w", err)
+		return nil, domain.ErrInternalError
 	}
+
+	reviewersUser, err := q.GetReviewersForPR(ctx, prID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: PR '%s'", domain.ErrNotFound, prID)
+		}
+		return nil, domain.ErrInternalError
+	}
+	reviewers := make([]domain.Reviewer, len(reviewersUser))
+	for i, reviewer := range reviewersUser {
+		reviewers[i] = domain.Reviewer{ID: reviewer.UserID, Username: reviewer.Username}
+	}
+
 	pr := &domain.PullRequest{
 		ID:        mergedDBPR.PrID,
 		Name:      mergedDBPR.PrName,
 		AuthorID:  mergedDBPR.AuthorID,
 		Status:    domain.PRStatus(mergedDBPR.Status),
+		Reviewers: reviewers,
 		CreatedAt: mergedDBPR.CreatedAt.Time,
 	}
 	if mergedDBPR.MergedAt.Valid {
@@ -312,7 +331,7 @@ func (r *Repository) GetReviewers(ctx context.Context, prID string) ([]domain.Us
 	q := r.querier(nil)
 	dbReviewers, err := q.GetReviewersForPR(ctx, prID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get reviewers for pr: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	reviewers := make([]domain.User, len(dbReviewers))
 	for i, rev := range dbReviewers {
@@ -324,7 +343,7 @@ func (r *Repository) GetReviewers(ctx context.Context, prID string) ([]domain.Us
 func (r *Repository) RemoveReviewer(ctx context.Context, tx pgx.Tx, prID string, userID string) error {
 	q := r.querier(tx)
 	if err := q.RemoveReviewerFromPR(ctx, models.RemoveReviewerFromPRParams{PrID: prID, UserID: userID}); err != nil {
-		return fmt.Errorf("failed to remove reviewer from pr: %w", err)
+		return domain.ErrInternalError
 	}
 	return nil
 }
@@ -333,7 +352,7 @@ func (r *Repository) AssignReviewers(ctx context.Context, tx pgx.Tx, prID string
 	q := r.querier(tx)
 	for _, userID := range userIDs {
 		if err := q.AddReviewerToPR(ctx, models.AddReviewerToPRParams{PrID: prID, UserID: userID}); err != nil {
-			return fmt.Errorf("failed to add reviewer to pr: %w", err)
+			return domain.ErrInternalError
 		}
 	}
 	return nil
@@ -343,7 +362,7 @@ func (r *Repository) GetOpenPRsByReviewer(ctx context.Context, tx pgx.Tx, userID
 	q := r.querier(tx)
 	dbPRs, err := q.GetPRsForReviewer(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get open prs by reviewer: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	prs := make([]domain.PullRequest, len(dbPRs))
 	for i, p := range dbPRs {
@@ -356,7 +375,7 @@ func (r *Repository) GetPRsByReviewer(ctx context.Context, userID string) ([]dom
 	q := r.querier(nil)
 	dbPRs, err := q.GetPRsForReviewer(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get prs by reviewer: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	prs := make([]domain.PullRequest, len(dbPRs))
 	for i, p := range dbPRs {
@@ -369,7 +388,7 @@ func (r *Repository) GetOpenPRsWithoutReviewers(ctx context.Context) ([]domain.P
 	q := r.querier(nil)
 	dbPRs, err := q.GetOpenPRsWithoutReviewers(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get open prs without reviewers: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	prs := make([]domain.PullRequest, len(dbPRs))
 	for i, p := range dbPRs {
@@ -390,7 +409,7 @@ func (r *Repository) GetReviewStats(ctx context.Context) ([]domain.StatItem, err
 	q := r.querier(nil)
 	dbStats, err := q.GetReviewStats(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get review stats: %w", err)
+		return nil, domain.ErrInternalError
 	}
 	stats := make([]domain.StatItem, len(dbStats))
 	for i, s := range dbStats {
@@ -410,7 +429,7 @@ func (r *Repository) GetOpenReviewCountForTeam(ctx context.Context, teamName str
 	}
 	count, err := q.CountOpenReviewsByTeam(ctx, team.ID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count open reviews for team: %w", err)
+		return 0, domain.ErrInternalError
 	}
 	return int(count), nil
 }
@@ -423,7 +442,7 @@ func (r *Repository) GetMergedReviewCountForTeam(ctx context.Context, teamName s
 	}
 	count, err := q.CountMergedReviewsByTeam(ctx, team.ID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count merged reviews for team: %w", err)
+		return 0, domain.ErrInternalError
 	}
 	return int(count), nil
 }
@@ -432,7 +451,7 @@ func (r *Repository) GetOpenReviewCountForUser(ctx context.Context, userID strin
 	q := r.querier(nil)
 	count, err := q.CountOpenReviewsByUser(ctx, userID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count open reviews for user: %w", err)
+		return 0, domain.ErrInternalError
 	}
 	return int(count), nil
 }
@@ -441,7 +460,7 @@ func (r *Repository) GetMergedReviewCountForUser(ctx context.Context, userID str
 	q := r.querier(nil)
 	count, err := q.CountMergedReviewsByUser(ctx, userID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count merged reviews for user: %w", err)
+		return 0, domain.ErrInternalError
 	}
 	return int(count), nil
 }

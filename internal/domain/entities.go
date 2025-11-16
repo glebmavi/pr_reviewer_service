@@ -61,8 +61,8 @@ type Reviewer struct {
 	Username string
 }
 
-// CanChangeReviewers - бизнес-правило
-func (pr *PullRequest) CanChangeReviewers() bool {
+// IsOpen - бизнес-правило
+func (pr *PullRequest) IsOpen() bool {
 	return pr.Status != StatusMerged
 }
 
