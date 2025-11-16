@@ -8,9 +8,31 @@ tags:
   - name: Users
   - name: PullRequests
   - name: Health
+  - name: Stats
 
 components:
   parameters:
+    TeamNameParam:
+      name: team_name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Уникальное имя команды
+    UserIdParam:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Идентификатор пользователя
+    PullRequestIdParam:
+      name: pull_request_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Идентификатор Pull Request
     TeamNameQuery:
       name: team_name
       in: query
@@ -43,6 +65,8 @@ components:
                 - NOT_ASSIGNED
                 - NO_CANDIDATE
                 - NOT_FOUND
+                - VALIDATION_ERROR
+                - INTERNAL_ERROR
             message:
               type: string
       example:
@@ -59,9 +83,10 @@ components:
           type: string
         is_active:
           type: boolean
+          default: true
     Team:
       type: object
-      required: [ team_name, members]
+      required: [ team_name, members ]
       properties:
         team_name:
           type: string
@@ -75,6 +100,16 @@ components:
       properties:
         user_id:
           type: string
+        username:
+          type: string
+        team_name:
+          type: string
+        is_active:
+          type: boolean
+    UserAddRequest:
+      type: object
+      required: [ username, team_name, is_active ]
+      properties:
         username:
           type: string
         team_name:
@@ -120,8 +155,59 @@ components:
         status:
           type: string
           enum: [OPEN, MERGED]
+    PullRequestCreateRequest:
+      type: object
+      required: [ pull_request_name, author_id ]
+      properties:
+        pull_request_name:
+          type: string
+        author_id:
+          type: string
+
+    StatItem:
+      type: object
+      properties:
+        user_id:
+          type: string
+        review_count:
+          type: integer
+          format: int64
+    StatsResponse:
+      type: object
+      properties:
+        review_stats:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatItem'
+    CountResponse:
+      type: object
+      required: [ count ]
+      properties:
+        count:
+          type: integer
+
+    TeamDeactivateRequest:
+      type: object
+      required: [ team_name ]
+      properties:
+        team_name:
+          type: string
+    TeamDeactivateResponse:
+      type: object
+      properties:
+        deactivated_users_count:
+          type: integer
+        reassigned_reviews_count:
+          type: integer
 
 paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Check service health
+      responses:
+        '200':
+          description: Service is healthy
   /team/add:
     post:
       tags: [Teams]
@@ -137,10 +223,8 @@ paths:
               members:
                 - user_id: u1
                   username: Alice
-                  is_active: true
                 - user_id: u2
                   username: Bob
-                  is_active: true
       responses:
         '201':
           description: Команда создана
@@ -162,6 +246,11 @@ paths:
                       username: Bob
                       is_active: true
         '400':
+          description: Некорректный запрос (например, валидация)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
           description: Команда уже существует
           content:
             application/json:
@@ -186,6 +275,7 @@ paths:
                 $ref: '#/components/schemas/Team'
               example:
                 team_name: backend
+                is_active: true
                 members:
                   - user_id: u1
                     username: Alice
@@ -195,6 +285,138 @@ paths:
                     is_active: true
         '404':
           description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /team/edit:
+    post:
+      tags: [Teams]
+      summary: Изменить имя команды
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ old_team_name, new_team_name ]
+              properties:
+                old_team_name:
+                  type: string
+                new_team_name:
+                  type: string
+      responses:
+        '200':
+          description: Имя команды изменено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Команда с таким именем уже существует
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /team/deactivate:
+    post:
+      tags: [Teams]
+      summary: Массово деактивировать команду и переназначить ревью
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamDeactivateRequest'
+      responses:
+        '200':
+          description: Команда деактивирована, ревью переназначены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDeactivateResponse'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/add:
+    post:
+      tags: [Users]
+      summary: Добавить пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAddRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: Пользователь уже существует
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/edit:
+    post:
+      tags: [Users]
+      summary: Изменить пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Пользователь изменен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/moveToTeam:
+    post:
+      tags: [Users]
+      summary: Переместить пользователя в другую команду
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ user_id, new_team_name ]
+              properties:
+                user_id:
+                  type: string
+                new_team_name:
+                  type: string
+      responses:
+        '200':
+          description: Пользователь перемещен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь или команда не найдены
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -240,6 +462,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /pullRequest/get/{pull_request_id}:
+    get:
+      tags: [PullRequests]
+      summary: Получить информацию о PR по ID
+      parameters:
+        - $ref: '#/components/parameters/PullRequestIdParam'
+      responses:
+        '200':
+          description: Объект PR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullRequest'
+        '404':
+          description: PR не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /pullRequest/open-without-reviewers:
+    get:
+      tags: [PullRequests]
+      summary: Получить список открытых PR без ревьюверов
+      responses:
+        '200':
+          description: Список PR
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PullRequestShort'
+
   /pullRequest/create:
     post:
       tags: [PullRequests]
@@ -249,14 +504,8 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [ pull_request_id, pull_request_name, author_id ]
-              properties:
-                pull_request_id: { type: string }
-                pull_request_name: { type: string }
-                author_id: { type: string }
+              $ref: '#/components/schemas/PullRequestCreateRequest'
             example:
-              pull_request_id: pr-1001
               pull_request_name: Add search
               author_id: u1
       responses:
@@ -419,3 +668,95 @@ paths:
                     pull_request_name: Add search
                     author_id: u1
                     status: OPEN
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /stats:
+    get:
+      tags: [ Stats ]
+      summary: Получить статистику по ревью
+      responses:
+        '200':
+          description: Статистика по ревью
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+
+  /stats/team/{team_name}/open-review-count:
+    get:
+      tags: [Stats]
+      summary: Получить количество назначенных OPEN PR у команды
+      parameters:
+        - $ref: '#/components/parameters/TeamNameParam'
+      responses:
+        '200':
+          description: Количество PR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /stats/user/{user_id}/open-review-count:
+    get:
+      tags: [Stats]
+      summary: Получить количество назначенных OPEN PR у пользователя
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Количество PR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /stats/team/{team_name}/merged-review-count:
+    get:
+      tags: [Stats]
+      summary: Получить количество закрытых PR у команды
+      parameters:
+        - $ref: '#/components/parameters/TeamNameParam'
+      responses:
+        '200':
+          description: Количество PR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /stats/user/{user_id}/merged-review-count:
+    get:
+      tags: [Stats]
+      summary: Получить количество закрытых PR у пользователя
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Количество PR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

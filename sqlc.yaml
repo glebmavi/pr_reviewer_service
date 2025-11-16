@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    # Директория с SQL-запросами
+    schema: "./db/migrations"
+    queries: "./db/sql"
+    gen:
+      go:
+        package: "models"
+        out: "./internal/storage/postgres/models"
+        # Использовать pgx/v5 вместо database/sql
+        sql_package: "pgx/v5"
+        emit_interface: true # Генерирует интерфейс Querier

@@ -7,11 +7,13 @@
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+# TODO HEALTHCHECK
 
   migrate:
     image: migrate/migrate
     depends_on:
       - postgres
+    # TODO ADD CONDITIONS
     volumes:
       - ./db/migrations:/migrations
     command: ["-path", "/migrations", "-database", "${APP_DB_URL}", "up"]
@@ -23,6 +25,7 @@
     ports:
       - "8080:8080"
     depends_on:
+    # TODO ADD CONDITIONS
       - postgres
       - migrate
     env_file:

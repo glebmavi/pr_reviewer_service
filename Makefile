@@ -1,34 +1,42 @@
-.PHONY: help build run test lint generate
+.PHONY: help generate lint build-docker run-docker stop-docker test
 
-# Команда для генерации oapi и sqlc
+help:
+	@echo "Доступные команды:"
+	@echo "  generate    - Запустить oapi-codegen и sqlc для генерации Go-кода"
+	@echo "  lint        - Запустить golangci-lint"
+	@echo "  build-docker- Запустить docker-compose build"
+	@echo "  up          - Запустить docker-compose up (сборка + запуск)"
+	@echo "  down        - Остановить docker-compose"
+	@echo "  test        - Запустить go test (пока не реализовано)"
+	@echo "  test-e2e    - Запустить e2e тесты (пока не реализовано)"
+
+# Генерирует Go-код из openapi.yaml и .sql
 generate:
-    oapi-codegen -generate "types,chi-server,spec" -package api -o pkg/api/server.gen.go openapi.yaml
-    sqlc generate -f sqlc.yaml
+	@echo "==> Генерация API-клиента (oapi-codegen)..."
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest \
+		-generate "types,chi-server,spec" \
+		-package api \
+		-o ./pkg/api/server.gen.go \
+		./openapi.yml
 
-# Сборка бинарника
-build:
-    go build -o ./bin/server ./cmd/server/main.go
+	@echo "==> Генерация DB-слоя (sqlc)..."
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 
-# Запуск локально (требует запущенного postgres)
-run:
-    go run ./cmd/server/main.go
+build-docker:
+	docker-compose build
 
-# Запуск всего стека
 up:
-    docker-compose up --build
+	docker-compose up --build -d
 
-# Остановка
 down:
-    docker-compose down
+	docker-compose down
 
-# Запуск линтера
 lint:
-    golangci-lint run ./...
+	@echo "==> Запуск линтера (golangci-lint)..."
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2 run ./... --config .golangci.yml
 
-# Запуск тестов
 test:
-    go test -v ./...
+	go test -v ./...
 
-# Запуск E2E тестов
 test-e2e:
-    go test -v ./test/e2e/...
+	go test -v ./test/e2e/...
