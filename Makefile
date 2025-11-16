@@ -27,22 +27,22 @@ generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 
 build-docker:
-	docker-compose build
+	docker compose build
 
 build-docker-test:
-	docker-compose -f docker-compose.test.yml build
+	docker compose -f docker-compose.test.yml build
 
 up:
-	docker-compose up --build -d
+	docker compose up --build -d
 
 up-test: build-docker-test
-	docker-compose -f docker-compose.test.yml up -d
+	docker compose -f docker-compose.test.yml up -d
 
 down-test:
-	docker-compose -f docker-compose.test.yml down
+	docker compose -f docker-compose.test.yml down
 
 down:
-	docker-compose down
+	docker compose down
 
 lint:
 	@echo "==> Запуск линтера (golangci-lint)..."
