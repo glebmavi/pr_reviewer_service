@@ -27,7 +27,6 @@ type Querier interface {
 	GetActiveUsersFromTeamExcluding(ctx context.Context, arg GetActiveUsersFromTeamExcludingParams) ([]User, error)
 	GetAuthorTeamByPR(ctx context.Context, prID string) (Team, error)
 	GetOpenPRsWithoutReviewers(ctx context.Context) ([]PullRequest, error)
-	// Находим все ОТКРЫТЫЕ ревью для списка пользователей
 	GetOpenReviewsForUsers(ctx context.Context, dollar_1 []string) ([]GetOpenReviewsForUsersRow, error)
 	GetPRByID(ctx context.Context, prID string) (PullRequest, error)
 	GetPRsForReviewer(ctx context.Context, userID string) ([]GetPRsForReviewerRow, error)

@@ -526,11 +526,11 @@ func TestStats(t *testing.T) {
 	unmarshalResponse(t, body, &pr1)
 
 	pr2Payload := map[string]string{"pull_request_name": "feat: awesome mix vol. 1", "author_id": starlord.UserId}
-	resp, body = doRequest(t, "POST", "/pullRequest/create", pr2Payload)
+	resp, _ = doRequest(t, "POST", "/pullRequest/create", pr2Payload)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	pr3Payload := map[string]string{"pull_request_name": "refactor: suit v42", "author_id": ironman.UserId}
-	resp, body = doRequest(t, "POST", "/pullRequest/create", pr3Payload)
+	resp, _ = doRequest(t, "POST", "/pullRequest/create", pr3Payload)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// 3. Merge one PR

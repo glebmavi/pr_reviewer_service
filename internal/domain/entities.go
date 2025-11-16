@@ -62,7 +62,6 @@ type Reviewer struct {
 	Username string
 }
 
-// IsOpen - бизнес-правило
 func (pr *PullRequest) IsOpen() bool {
 	return pr.Status != StatusMerged
 }

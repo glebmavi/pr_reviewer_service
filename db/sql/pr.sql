@@ -33,10 +33,10 @@ RETURNING *;
 -- name: FindReplacementCandidates :many
 SELECT u.*
 FROM users u
-WHERE u.team_id = $1      -- Команда, в которой ищем
-  AND u.is_active = true    -- Только активные
-  AND u.user_id != $2       -- Не автор PR
-  AND u.user_id != ALL($3::varchar[]) -- Не те, кто уже назначен
+WHERE u.team_id = $1
+  AND u.is_active = true
+  AND u.user_id != $2       -- Not author
+  AND u.user_id != ALL($3::varchar[]) -- Not those in arr
 ORDER BY random()
 LIMIT $4;
 
@@ -55,7 +55,6 @@ JOIN review_assignments ra ON pr.pr_id = ra.pr_id
 WHERE ra.user_id = $1;
 
 -- name: GetOpenReviewsForUsers :many
--- Находим все ОТКРЫТЫЕ ревью для списка пользователей
 SELECT ra.pr_id, ra.user_id, pr.author_id
 FROM review_assignments ra
 JOIN pull_requests pr ON ra.pr_id = pr.pr_id

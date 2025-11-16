@@ -122,10 +122,10 @@ func (q *Queries) CreatePR(ctx context.Context, arg CreatePRParams) (PullRequest
 const findReplacementCandidates = `-- name: FindReplacementCandidates :many
 SELECT u.user_id, u.username, u.team_id, u.is_active, u.created_at
 FROM users u
-WHERE u.team_id = $1      -- Команда, в которой ищем
-  AND u.is_active = true    -- Только активные
-  AND u.user_id != $2       -- Не автор PR
-  AND u.user_id != ALL($3::varchar[]) -- Не те, кто уже назначен
+WHERE u.team_id = $1
+  AND u.is_active = true
+  AND u.user_id != $2       -- Not author
+  AND u.user_id != ALL($3::varchar[]) -- Not those in arr
 ORDER BY random()
 LIMIT $4
 `
@@ -233,7 +233,6 @@ type GetOpenReviewsForUsersRow struct {
 	AuthorID string
 }
 
-// Находим все ОТКРЫТЫЕ ревью для списка пользователей
 func (q *Queries) GetOpenReviewsForUsers(ctx context.Context, dollar_1 []string) ([]GetOpenReviewsForUsersRow, error) {
 	rows, err := q.db.Query(ctx, getOpenReviewsForUsers, dollar_1)
 	if err != nil {
