@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// todo: add new error that is in server.gen.go
 var (
 	ErrInternalError = errors.New("internal Error")
 	ErrNoCandidate   = errors.New("no suitable candidate found for assignment")
@@ -14,6 +15,7 @@ var (
 	ErrPRMerged      = errors.New("operation not allowed on merged PR")
 	ErrTeamExists    = errors.New("team already exists")
 	ErrValidation    = errors.New("validation failed")
+	ErrUserNotActive = errors.New("user is not active")
 )
 
 type PRStatus string

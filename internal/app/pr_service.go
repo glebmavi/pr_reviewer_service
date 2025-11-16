@@ -144,6 +144,58 @@ func (s *PullRequestService) MergePR(ctx context.Context, prID string) (*domain.
 	return mergedPR, nil
 }
 
+func (s *PullRequestService) AssignReviewer(ctx context.Context, prID string, userID string) (*domain.PullRequest, error) {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user to assign: %w", err)
+	}
+	if !user.IsActive {
+		return nil, domain.ErrUserNotActive
+	}
+
+	pr, err := s.GetPR(ctx, prID)
+	if err != nil {
+		return nil, err
+	}
+	if !pr.IsOpen() {
+		return nil, domain.ErrPRMerged
+	}
+
+	if pr.AuthorID == userID {
+		return nil, fmt.Errorf("%w: author cannot be assigned as a reviewer to their own PR", domain.ErrValidation)
+	}
+
+	for _, r := range pr.Reviewers {
+		if r.ID == userID {
+			return pr, nil
+		}
+	}
+
+	if len(pr.Reviewers) >= maxReviewers {
+		return nil, fmt.Errorf("%w: pull request already has the maximum number of reviewers", domain.ErrValidation)
+	}
+
+	tx, err := s.tx.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func(tx2 domain.Transactor, ctx context.Context, tx pgx.Tx) {
+		if err := tx2.RollbackTx(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			s.log.Error("failed to rollback transaction", "error", err)
+		}
+	}(s.tx, ctx, tx)
+
+	if err := s.prRepo.AssignReviewers(ctx, tx, prID, []string{userID}); err != nil {
+		return nil, fmt.Errorf("failed to assign reviewer in repo: %w", err)
+	}
+
+	if err := s.tx.CommitTx(ctx, tx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return s.GetPR(ctx, prID)
+}
+
 func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, oldUserID string) (*domain.PullRequest, string, error) {
 	pr, err := s.GetPR(ctx, prID)
 	if err != nil {

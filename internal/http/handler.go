@@ -258,6 +258,23 @@ func (h *Handler) PostPullRequestMerge(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, prToAPI(pr))
 }
 
+func (h *Handler) PostPullRequestAssign(w http.ResponseWriter, r *http.Request) {
+	var req api.PostPullRequestAssignJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, r, api.VALIDATIONERROR, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	pr, err := h.prSvc.AssignReviewer(r.Context(), req.PullRequestId, req.UserId)
+	if err != nil {
+		h.handleServiceError(w, r, err)
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, prToAPI(pr))
+}
+
 func (h *Handler) PostPullRequestReassign(w http.ResponseWriter, r *http.Request) {
 	var req api.PostPullRequestReassignJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -373,6 +390,9 @@ func (h *Handler) handleServiceError(w http.ResponseWriter, r *http.Request, err
 	case errors.Is(err, domain.ErrValidation):
 		code = api.VALIDATIONERROR
 		httpStatus = http.StatusBadRequest
+	case errors.Is(err, domain.ErrUserNotActive):
+		code = api.USERNOTACTIVE
+		httpStatus = http.StatusConflict
 	}
 
 	if httpStatus == http.StatusInternalServerError {
