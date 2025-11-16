@@ -1,13 +1,13 @@
-.PHONY: help generate lint lint-fix build-docker up down test deps docker-check test-coverage ci
+.PHONY: help generate lint lint-fix build-docker up down test deps docker-check test-coverage ci up-test down-test
 
 help:
 	@echo "Доступные команды:"
 	@echo "  generate      - Сгенерировать Go-код из openapi.yml и .sql файлов"
 	@echo "  lint          - Запустить линтер golangci-lint"
 	@echo "  lint-fix      - Запустить линтер golangci-lint с автоматическим исправлением"
-	@echo "  build-docker  - Собрать docker-образы с помощью docker-compose"
-	@echo "  up            - Собрать и запустить docker-контейнеры"
-	@echo "  down          - Остановить docker-контейнеры"
+	@echo "  build-docker  - Собрать основные docker-образы"
+	@echo "  up            - Собрать и запустить основные docker-контейнеры"
+	@echo "  down          - Остановить основные docker-контейнеры"
 	@echo "  deps          - Загрузить Go зависимости"
 	@echo "  docker-check  - Проверить, запущен ли Docker"
 	@echo "  test          - Запустить E2E тесты"
@@ -35,6 +35,12 @@ build-docker-test:
 up:
 	docker-compose up --build -d
 
+up-test: build-docker-test
+	docker-compose -f docker-compose.test.yml up -d
+
+down-test:
+	docker-compose -f docker-compose.test.yml down
+
 down:
 	docker-compose down
 
@@ -54,9 +60,11 @@ docker-check: ## Проверка, запущен ли Docker
 	@docker info > /dev/null 2>&1 || (echo "Ошибка: Docker не запущен" && exit 1)
 	@echo "✓ Docker запущен"
 
-test: docker-check build-docker-test ## Запуск E2E тестов
+test: up-test ## Запуск E2E тестов
 	@echo "Запуск E2E тестов..."
+	@trap "make down-test" EXIT
 	go test -v ./... -timeout 10m
+
 
 test-coverage: docker-check build-docker-test ## Запуск E2E тестов с отчетом о покрытии
 	@echo "Запуск E2E тестов с покрытием..."
