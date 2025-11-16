@@ -132,10 +132,17 @@ func doRequest(t *testing.T, method, path string, body interface{}) (*http.Respo
 	t.Helper()
 
 	var bodyReader io.Reader
+	var jsonData []byte
 	if body != nil {
-		jsonData, err := json.Marshal(body)
+		var err error
+		jsonData, err = json.Marshal(body)
 		require.NoError(t, err)
 		bodyReader = bytes.NewBuffer(jsonData)
+	}
+
+	t.Logf("Request: %s %s", method, path)
+	if body != nil {
+		t.Logf("Request body: %s", string(jsonData))
 	}
 
 	req, err := http.NewRequest(method, baseURL+path, bodyReader)
@@ -187,9 +194,9 @@ func TestPRReviewCycle(t *testing.T) {
 	teamPayload := Team{
 		TeamName: teamName,
 		Members: []TeamMember{
-			{UserID: "", Username: "A"},
-			{UserID: "", Username: "B"},
-			{UserID: "", Username: "C"},
+			{UserId: "", Username: "A"},
+			{UserId: "", Username: "B"},
+			{UserId: "", Username: "C"},
 		},
 	}
 	resp, body := doRequest(t, "POST", "/team/add", teamPayload)
@@ -203,29 +210,29 @@ func TestPRReviewCycle(t *testing.T) {
 	// 2. Create a PR by A, should assign B and C
 	prPayload := map[string]string{
 		"pull_request_name": "feat: new feature",
-		"author_id":         createdTeam.Members[0].UserID,
+		"author_id":         createdTeam.Members[0].UserId,
 	}
 	resp, body = doRequest(t, "POST", "/pullRequest/create", prPayload)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var createdPR PullRequest
 	unmarshalResponse(t, body, &createdPR)
-	prID := createdPR.PullRequestID
+	prID := createdPR.PullRequestId
 
 	assert.Equal(t, "feat: new feature", createdPR.PullRequestName)
-	assert.Equal(t, createdTeam.Members[0].UserID, createdPR.AuthorID)
+	assert.Equal(t, createdTeam.Members[0].UserId, createdPR.AuthorId)
 	assert.Equal(t, "OPEN", createdPR.Status)
 	assert.Len(t, createdPR.AssignedReviewers, 2)
-	assert.NotContains(t, createdPR.AssignedReviewers, createdTeam.Members[0].UserID) // Author should not be a reviewer
-	assert.Contains(t, createdPR.AssignedReviewers, createdTeam.Members[1].UserID)
-	assert.Contains(t, createdPR.AssignedReviewers, createdTeam.Members[2].UserID)
+	assert.NotContains(t, createdPR.AssignedReviewers, createdTeam.Members[0].UserId) // Author should not be a reviewer
+	assert.Contains(t, createdPR.AssignedReviewers, createdTeam.Members[1].UserId)
+	assert.Contains(t, createdPR.AssignedReviewers, createdTeam.Members[2].UserId)
 
 	// 3. Get the PR and verify its state
 	resp, body = doRequest(t, "GET", "/pullRequest/get/"+prID, nil)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	var fetchedPR PullRequest
 	unmarshalResponse(t, body, &fetchedPR)
-	assert.Equal(t, prID, fetchedPR.PullRequestID)
+	assert.Equal(t, prID, fetchedPR.PullRequestId)
 	assert.Len(t, fetchedPR.AssignedReviewers, 2)
 
 	// 4. Merge the PR
@@ -239,7 +246,7 @@ func TestPRReviewCycle(t *testing.T) {
 	// 5. Try to reassign a reviewer on a merged PR (should fail WITH PR_MERGED)
 	reassignPayload := map[string]string{
 		"pull_request_id": prID,
-		"old_user_id":     createdTeam.Members[2].UserID,
+		"old_user_id":     createdTeam.Members[2].UserId,
 	}
 	resp, body = doRequest(t, "POST", "/pullRequest/reassign", reassignPayload)
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
@@ -252,8 +259,8 @@ func TestPRReviewWithNotEnoughReviewers(t *testing.T) {
 	teamPayload := Team{
 		TeamName: teamName,
 		Members: []TeamMember{
-			{UserID: "", Username: "D"},
-			{UserID: "", Username: "E"},
+			{UserId: "", Username: "D"},
+			{UserId: "", Username: "E"},
 		},
 	}
 	resp, body := doRequest(t, "POST", "/team/add", teamPayload)
@@ -265,7 +272,7 @@ func TestPRReviewWithNotEnoughReviewers(t *testing.T) {
 	// 2. Create a PR by D, should assign only E
 	prPayload := map[string]string{
 		"pull_request_name": "fix: css bug",
-		"author_id":         createdTeam.Members[0].UserID,
+		"author_id":         createdTeam.Members[0].UserId,
 	}
 	resp, body = doRequest(t, "POST", "/pullRequest/create", prPayload)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -273,12 +280,12 @@ func TestPRReviewWithNotEnoughReviewers(t *testing.T) {
 	var createdPR PullRequest
 	unmarshalResponse(t, body, &createdPR)
 	assert.Len(t, createdPR.AssignedReviewers, 1)
-	assert.Equal(t, createdTeam.Members[1].UserID, createdPR.AssignedReviewers[0])
+	assert.Equal(t, createdTeam.Members[1].UserId, createdPR.AssignedReviewers[0])
 
 	// 3. Create a team with 1 member
 	teamPayloadSolo := Team{
 		TeamName: "solo-squad",
-		Members:  []TeamMember{{UserID: "", Username: "F"}},
+		Members:  []TeamMember{{UserId: "", Username: "F"}},
 	}
 	resp, body = doRequest(t, "POST", "/team/add", teamPayloadSolo)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -289,7 +296,7 @@ func TestPRReviewWithNotEnoughReviewers(t *testing.T) {
 	// 4. Create a PR by F, should assign 0 reviewers
 	prPayloadSolo := map[string]string{
 		"pull_request_name": "docs: update readme",
-		"author_id":         createdTeamSolo.Members[0].UserID,
+		"author_id":         createdTeamSolo.Members[0].UserId,
 	}
 	resp, body = doRequest(t, "POST", "/pullRequest/create", prPayloadSolo)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -297,4 +304,127 @@ func TestPRReviewWithNotEnoughReviewers(t *testing.T) {
 	var createdPRSolo PullRequest
 	unmarshalResponse(t, body, &createdPRSolo)
 	assert.Len(t, createdPRSolo.AssignedReviewers, 0)
+}
+
+func TestUserDeactivationAndReassignment(t *testing.T) {
+	// 1. Create a team with 3 members
+	teamName := "deactivation-test-squad"
+	teamPayload := Team{
+		TeamName: teamName,
+		Members: []TeamMember{
+			{Username: "UserX"},
+			{Username: "UserY"},
+			{Username: "UserZ"},
+		},
+	}
+	resp, body := doRequest(t, "POST", "/team/add", teamPayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var createdTeam Team
+	unmarshalResponse(t, body, &createdTeam)
+	require.Len(t, createdTeam.Members, 3)
+	author := createdTeam.Members[0]
+	reviewer1 := createdTeam.Members[1]
+	reviewer2 := createdTeam.Members[2]
+
+	// 2. Create a PR by UserX, assigning UserY and UserZ
+	prPayload := map[string]string{
+		"pull_request_name": "feat: user deactivation test",
+		"author_id":         author.UserId,
+	}
+	resp, body = doRequest(t, "POST", "/pullRequest/create", prPayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var createdPR PullRequest
+	unmarshalResponse(t, body, &createdPR)
+	prID := createdPR.PullRequestId
+	require.Contains(t, createdPR.AssignedReviewers, reviewer1.UserId)
+	require.Contains(t, createdPR.AssignedReviewers, reviewer2.UserId)
+
+	// 3. Deactivate UserY
+	deactivatePayload := PostUsersSetIsActiveJSONBody{
+		UserId:   reviewer1.UserId,
+		IsActive: false,
+	}
+	resp, body = doRequest(t, "POST", "/users/setIsActive", deactivatePayload) // will also remove UserY from any PR
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var userResponse User
+	unmarshalResponse(t, body, &userResponse)
+	assert.Equal(t, reviewer1.UserId, userResponse.UserId)
+	assert.False(t, userResponse.IsActive, "UserY should be deactivated")
+
+	// 4. Try to reassign UserZ. It should fail with NO_CANDIDATE because UserZ is the only other
+	// reviewer and there are no other active users in the team.
+	reassignPayload := map[string]string{
+		"pull_request_id": prID,
+		"old_user_id":     reviewer2.UserId,
+	}
+	resp, body = doRequest(t, "POST", "/pullRequest/reassign", reassignPayload)
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assertErrorCode(t, body, "NO_CANDIDATE")
+}
+
+func TestTeamDeactivation(t *testing.T) {
+	// 1. Create two teams
+	teamToDeactivateName := "deactivation-squad"
+	teamToDeactivatePayload := Team{
+		TeamName: teamToDeactivateName,
+		Members: []TeamMember{
+			{Username: "Reviewer1"},
+			{Username: "Reviewer2"},
+			{Username: "Reviewer3"},
+		},
+	}
+	resp, body := doRequest(t, "POST", "/team/add", teamToDeactivatePayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var teamToDeactivate Team
+	unmarshalResponse(t, body, &teamToDeactivate)
+	reviewerToDeactivate := teamToDeactivate.Members[0]
+
+	reassignTeamName := "reassign-squad"
+	reassignTeamPayload := Team{
+		TeamName: reassignTeamName,
+		Members: []TeamMember{
+			{Username: "Author"},
+			{Username: "NewReviewerCandidate"},
+		},
+	}
+	resp, body = doRequest(t, "POST", "/team/add", reassignTeamPayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var reassignTeam Team
+	unmarshalResponse(t, body, &reassignTeam)
+	author := reassignTeam.Members[0]
+
+	// 2. Create a PR by a user from the second team
+	prPayload := map[string]string{
+		"pull_request_name": "feat: team deactivation test",
+		"author_id":         author.UserId,
+	}
+	resp, body = doRequest(t, "POST", "/pullRequest/create", prPayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var createdPR PullRequest
+	unmarshalResponse(t, body, &createdPR)
+	prID := createdPR.PullRequestId
+
+	// 3. Manually assign a reviewer from the team that will be deactivated
+	assignPayload := map[string]string{
+		"pull_request_id": prID,
+		"user_id":         reviewerToDeactivate.UserId,
+	}
+	resp, body = doRequest(t, "POST", "/pullRequest/assign", assignPayload)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var updatedPR PullRequest
+	unmarshalResponse(t, body, &updatedPR)
+	require.Contains(t, updatedPR.AssignedReviewers, reviewerToDeactivate.UserId)
+
+	// 4. Deactivate the first team
+	deactivateTeamPayload := map[string]string{
+		"team_name": teamToDeactivateName,
+	}
+	resp, body = doRequest(t, "POST", "/team/deactivate", deactivateTeamPayload)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// 5. Check the response
+	var deactivateResp TeamDeactivateResponse
+	unmarshalResponse(t, body, &deactivateResp)
+	assert.Equal(t, 3, *deactivateResp.DeactivatedUsersCount, "Should deactivate all 3 users in the team")
+	assert.Equal(t, 0, *deactivateResp.ReassignedReviewsCount, "Has 1 reviewer which is enough, so it didn't reassign")
 }

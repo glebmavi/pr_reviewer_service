@@ -8,49 +8,49 @@ type ErrorResponse struct {
 }
 
 type TeamMember struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
 	IsActive bool   `json:"is_active"`
+	UserId   string `json:"user_id"`
+	Username string `json:"username"`
 }
 
 type Team struct {
-	TeamName string       `json:"team_name"`
 	Members  []TeamMember `json:"members"`
+	TeamName string       `json:"team_name"`
 }
 
 type User struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	TeamName string `json:"team_name"`
 	IsActive bool   `json:"is_active"`
+	TeamName string `json:"team_name"`
+	UserId   string `json:"user_id"`
+	Username string `json:"username"`
 }
 
 type UserAddRequest struct {
-	Username string `json:"username"`
-	TeamName string `json:"team_name"`
 	IsActive bool   `json:"is_active"`
+	TeamName string `json:"team_name"`
+	Username string `json:"username"`
 }
 
 type PullRequest struct {
-	PullRequestID     string   `json:"pull_request_id"`
-	PullRequestName   string   `json:"pull_request_name"`
-	AuthorID          string   `json:"author_id"`
-	Status            string   `json:"status"`
 	AssignedReviewers []string `json:"assigned_reviewers"`
+	AuthorId          string   `json:"author_id"`
 	CreatedAt         *string  `json:"createdAt,omitempty"`
 	MergedAt          *string  `json:"mergedAt,omitempty"`
+	PullRequestId     string   `json:"pull_request_id"`
+	PullRequestName   string   `json:"pull_request_name"`
+	Status            string   `json:"status"`
 }
 
 type PullRequestShort struct {
-	PullRequestID   string `json:"pull_request_id"`
+	AuthorId        string `json:"author_id"`
+	PullRequestId   string `json:"pull_request_id"`
 	PullRequestName string `json:"pull_request_name"`
-	AuthorID        string `json:"author_id"`
 	Status          string `json:"status"`
 }
 
 type PullRequestCreateRequest struct {
+	AuthorId        string `json:"author_id"`
 	PullRequestName string `json:"pull_request_name"`
-	AuthorID        string `json:"author_id"`
 }
 
 type CountResponse struct {
@@ -58,12 +58,12 @@ type CountResponse struct {
 }
 
 type StatItem struct {
-	UserID      string `json:"user_id"`
-	ReviewCount int64  `json:"review_count"`
+	ReviewCount *int64  `json:"review_count,omitempty"`
+	UserId      *string `json:"user_id,omitempty"`
 }
 
 type StatsResponse struct {
-	ReviewStats []StatItem `json:"review_stats"`
+	ReviewStats *[]StatItem `json:"review_stats,omitempty"`
 }
 
 type TeamDeactivateRequest struct {
@@ -71,11 +71,11 @@ type TeamDeactivateRequest struct {
 }
 
 type TeamDeactivateResponse struct {
-	DeactivatedUsersCount  int `json:"deactivated_users_count"`
-	ReassignedReviewsCount int `json:"reassigned_reviews_count"`
+	DeactivatedUsersCount  *int `json:"deactivated_users_count,omitempty"`
+	ReassignedReviewsCount *int `json:"reassigned_reviews_count,omitempty"`
 }
 
 type PostUsersSetIsActiveJSONBody struct {
-	IsActive bool   `json:"is_active"`
 	UserId   string `json:"user_id"`
+	IsActive bool   `json:"is_active"`
 }

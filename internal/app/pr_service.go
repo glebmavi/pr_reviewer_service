@@ -256,8 +256,14 @@ func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx
 		return "", fmt.Errorf("failed to remove reviewer: %w", err)
 	}
 
-	currentReviewerIDs := make([]string, 0, len(pr.Reviewers)-1)
-	for _, r := range pr.Reviewers {
+	// Refetch reviewers inside the transaction to get the current state after removal.
+	currentReviewers, err := s.prRepo.GetReviewers(ctx, pr.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get current reviewers: %w", err)
+	}
+
+	currentReviewerIDs := make([]string, 0, len(currentReviewers))
+	for _, r := range currentReviewers {
 		if r.ID != oldUserID {
 			currentReviewerIDs = append(currentReviewerIDs, r.ID)
 		}

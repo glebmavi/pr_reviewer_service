@@ -160,18 +160,21 @@ func (s *UserService) SetUserActiveStatus(ctx context.Context, userID string, is
 
 	user, err := s.userRepo.SetUserActiveStatus(ctx, tx, userID, isActive)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed while trying to set active status %s", domain.ErrValidation, err)
 	}
 
 	prs, err := s.prSvc.GetReviewsForUser(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed while trying to get pull requests from user %s", domain.ErrInternalError, err)
 	}
 
 	if !isActive {
 		for _, pr := range prs {
 			if _, err := s.prSvc.reassignReviewerInTx(ctx, tx, &pr, userID); err != nil {
-				return nil, err
+				if errors.Is(err, domain.ErrNoCandidate) {
+					return nil, err // Keep specific error for 409 Conflict
+				}
+				return nil, fmt.Errorf("%w: failed to reassign pull request %s: %v", domain.ErrValidation, pr.ID, err)
 			}
 		}
 

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// todo: add new error that is in server.gen.go
 var (
 	ErrInternalError = errors.New("internal Error")
 	ErrNoCandidate   = errors.New("no suitable candidate found for assignment")
