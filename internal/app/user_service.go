@@ -172,7 +172,7 @@ func (s *UserService) SetUserActiveStatus(ctx context.Context, userID string, is
 		for _, pr := range prs {
 			if _, err := s.prSvc.reassignReviewerInTx(ctx, tx, &pr, userID); err != nil {
 				if errors.Is(err, domain.ErrNoCandidate) {
-					return nil, err // Keep specific error for 409 Conflict
+					continue // not finding candidates should not be an issue for deactivating
 				}
 				return nil, fmt.Errorf("%w: failed to reassign pull request %s: %v", domain.ErrValidation, pr.ID, err)
 			}

@@ -281,7 +281,7 @@ func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx
 
 	if len(candidates) == 0 {
 		s.log.Warn("no new reviewer found for PR", "pr_id", pr.ID)
-		return "", nil
+		return "", fmt.Errorf("%w: no new reviewer found for PR: %v", domain.ErrNoCandidate, pr.ID)
 	}
 
 	newReviewerID := candidates[0].ID

@@ -428,3 +428,166 @@ func TestTeamDeactivation(t *testing.T) {
 	assert.Equal(t, 3, *deactivateResp.DeactivatedUsersCount, "Should deactivate all 3 users in the team")
 	assert.Equal(t, 0, *deactivateResp.ReassignedReviewsCount, "Has 1 reviewer which is enough, so it didn't reassign")
 }
+
+func TestUserManagement(t *testing.T) {
+	// 1. Create a team
+	team1Name := "rangers"
+	team1Payload := Team{
+		TeamName: team1Name,
+		Members:  []TeamMember{},
+	}
+	resp, _ := doRequest(t, "POST", "/team/add", team1Payload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// 2. Add a new user to the team
+	addUserPayload := map[string]string{
+		"username":  "Zordon",
+		"team_name": team1Name,
+	}
+	resp, body := doRequest(t, "POST", "/users/add", addUserPayload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var addedUser User
+	unmarshalResponse(t, body, &addedUser)
+	assert.Equal(t, "Zordon", addedUser.Username)
+	assert.Equal(t, team1Name, addedUser.TeamName)
+	assert.True(t, addedUser.IsActive)
+	userID := addedUser.UserId
+
+	// 3. Create another team
+	team2Name := "paladins"
+	team2Payload := Team{
+		TeamName: team2Name,
+		Members:  []TeamMember{},
+	}
+	resp, _ = doRequest(t, "POST", "/team/add", team2Payload)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// 4. Move the user to the new team
+	moveUserPayload := map[string]string{
+		"user_id":       userID,
+		"new_team_name": team2Name,
+	}
+	resp, body = doRequest(t, "POST", "/users/moveToTeam", moveUserPayload)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var movedUser User
+	unmarshalResponse(t, body, &movedUser)
+	assert.Equal(t, userID, movedUser.UserId)
+	assert.Equal(t, team2Name, movedUser.TeamName)
+
+	// 5. Get user and verify team change
+	resp, body = doRequest(t, "GET", "/users/get/"+userID, nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var fetchedUser User
+	unmarshalResponse(t, body, &fetchedUser)
+	assert.Equal(t, team2Name, fetchedUser.TeamName)
+}
+
+func TestStats(t *testing.T) {
+	// 1. Create teams and users
+	teamAvengersName := "avengers"
+	teamAvengersPayload := Team{
+		TeamName: teamAvengersName,
+		Members: []TeamMember{
+			{Username: "ironman"},
+			{Username: "captain"},
+			{Username: "thor"},
+		},
+	}
+	resp, body := doRequest(t, "POST", "/team/add", teamAvengersPayload)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var avengersTeam Team
+	unmarshalResponse(t, body, &avengersTeam)
+	ironman := avengersTeam.Members[0]
+	captain := avengersTeam.Members[1]
+	thor := avengersTeam.Members[2]
+
+	teamGuardiansName := "guardians"
+	teamGuardiansPayload := Team{
+		TeamName: teamGuardiansName,
+		Members: []TeamMember{
+			{Username: "starlord"},
+			{Username: "gamora"},
+		},
+	}
+	resp, body = doRequest(t, "POST", "/team/add", teamGuardiansPayload)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var guardiansTeam Team
+	unmarshalResponse(t, body, &guardiansTeam)
+	starlord := guardiansTeam.Members[0]
+	gamora := guardiansTeam.Members[1]
+
+	// 2. Create PRs
+	pr1Payload := map[string]string{"pull_request_name": "feat: infinity stones", "author_id": ironman.UserId}
+	resp, body = doRequest(t, "POST", "/pullRequest/create", pr1Payload)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var pr1 PullRequest
+	unmarshalResponse(t, body, &pr1)
+
+	pr2Payload := map[string]string{"pull_request_name": "feat: awesome mix vol. 1", "author_id": starlord.UserId}
+	resp, body = doRequest(t, "POST", "/pullRequest/create", pr2Payload)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	pr3Payload := map[string]string{"pull_request_name": "refactor: suit v42", "author_id": ironman.UserId}
+	resp, body = doRequest(t, "POST", "/pullRequest/create", pr3Payload)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// 3. Merge one PR
+	mergePayload := map[string]string{"pull_request_id": pr1.PullRequestId}
+	resp, _ = doRequest(t, "POST", "/pullRequest/merge", mergePayload)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// 4. Check stats
+	// Global stats
+	resp, body = doRequest(t, "GET", "/stats", nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var stats StatsResponse
+	unmarshalResponse(t, body, &stats)
+
+	// We expect stats for captain, thor and gamora.
+	// captain: 1 merged (pr1), 1 open (pr3)
+	// thor: 1 merged (pr1), 1 open (pr3)
+	// gamora: 1 open (pr2)
+	// The endpoint /stats returns total review count (open + merged)
+	expectedStats := map[string]int64{
+		captain.UserId: 2,
+		thor.UserId:    2,
+		gamora.UserId:  1,
+	}
+	for _, stat := range *stats.ReviewStats {
+		if count, ok := expectedStats[*stat.UserId]; ok {
+			assert.Equal(t, count, *stat.ReviewCount, "user %s review count mismatch", stat.UserId)
+			delete(expectedStats, *stat.UserId)
+		}
+	}
+	assert.Empty(t, expectedStats, "some users were not found in stats response")
+
+	// Team open review count
+	resp, body = doRequest(t, "GET", "/stats/team/"+teamAvengersName+"/open-review-count", nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var avengersOpenCount CountResponse
+	unmarshalResponse(t, body, &avengersOpenCount)
+	assert.Equal(t, 2, avengersOpenCount.Count) // pr3 has 2 reviewers from avengers
+
+	// Team merged review count
+	resp, body = doRequest(t, "GET", "/stats/team/"+teamAvengersName+"/merged-review-count", nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var avengersMergedCount CountResponse
+	unmarshalResponse(t, body, &avengersMergedCount)
+	assert.Equal(t, 2, avengersMergedCount.Count) // pr1 has 2 reviewers from avengers
+
+	// User open review count
+	resp, body = doRequest(t, "GET", "/stats/user/"+captain.UserId+"/open-review-count", nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var userOpenCount CountResponse
+	unmarshalResponse(t, body, &userOpenCount)
+	assert.Equal(t, 1, userOpenCount.Count) // captain on pr3
+
+	// User merged review count
+	resp, body = doRequest(t, "GET", "/stats/user/"+captain.UserId+"/merged-review-count", nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var userMergedCount CountResponse
+	unmarshalResponse(t, body, &userMergedCount)
+	assert.Equal(t, 1, userMergedCount.Count) // captain on pr1
+}
