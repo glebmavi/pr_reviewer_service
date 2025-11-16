@@ -130,6 +130,7 @@ func (r *Repository) CreateUser(ctx context.Context, tx pgx.Tx, user *domain.Use
 		UserID:   user.ID,
 		Username: user.Username,
 		TeamID:   user.TeamID,
+		IsActive: true,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -314,8 +315,8 @@ func (r *Repository) GetReviewers(ctx context.Context, prID string) ([]domain.Us
 		return nil, fmt.Errorf("failed to get reviewers for pr: %w", err)
 	}
 	reviewers := make([]domain.User, len(dbReviewers))
-	for i, r := range dbReviewers {
-		reviewers[i] = domain.User{ID: r.UserID, Username: r.Username}
+	for i, rev := range dbReviewers {
+		reviewers[i] = domain.User{ID: rev.UserID, Username: rev.Username}
 	}
 	return reviewers, nil
 }
@@ -349,4 +350,98 @@ func (r *Repository) GetOpenPRsByReviewer(ctx context.Context, tx pgx.Tx, userID
 		prs[i] = domain.PullRequest{ID: p.PrID, AuthorID: p.AuthorID}
 	}
 	return prs, nil
+}
+
+func (r *Repository) GetPRsByReviewer(ctx context.Context, userID string) ([]domain.PullRequest, error) {
+	q := r.querier(nil)
+	dbPRs, err := q.GetPRsForReviewer(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prs by reviewer: %w", err)
+	}
+	prs := make([]domain.PullRequest, len(dbPRs))
+	for i, p := range dbPRs {
+		prs[i] = domain.PullRequest{ID: p.PrID, AuthorID: p.AuthorID}
+	}
+	return prs, nil
+}
+
+func (r *Repository) GetOpenPRsWithoutReviewers(ctx context.Context) ([]domain.PullRequest, error) {
+	q := r.querier(nil)
+	dbPRs, err := q.GetOpenPRsWithoutReviewers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open prs without reviewers: %w", err)
+	}
+	prs := make([]domain.PullRequest, len(dbPRs))
+	for i, p := range dbPRs {
+		prs[i] = domain.PullRequest{
+			ID:        p.PrID,
+			Name:      p.PrName,
+			AuthorID:  p.AuthorID,
+			Status:    domain.PRStatus(p.Status),
+			CreatedAt: p.CreatedAt.Time,
+		}
+	}
+	return prs, nil
+}
+
+// --- StatsRepository Implementation ---
+
+func (r *Repository) GetReviewStats(ctx context.Context) ([]domain.StatItem, error) {
+	q := r.querier(nil)
+	dbStats, err := q.GetReviewStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get review stats: %w", err)
+	}
+	stats := make([]domain.StatItem, len(dbStats))
+	for i, s := range dbStats {
+		stats[i] = domain.StatItem{
+			UserID:      s.UserID,
+			ReviewCount: s.ReviewCount,
+		}
+	}
+	return stats, nil
+}
+
+func (r *Repository) GetOpenReviewCountForTeam(ctx context.Context, teamName string) (int, error) {
+	q := r.querier(nil)
+	team, err := r.GetTeamByName(ctx, teamName)
+	if err != nil {
+		return 0, err
+	}
+	count, err := q.CountOpenReviewsByTeam(ctx, team.ID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count open reviews for team: %w", err)
+	}
+	return int(count), nil
+}
+
+func (r *Repository) GetMergedReviewCountForTeam(ctx context.Context, teamName string) (int, error) {
+	q := r.querier(nil)
+	team, err := r.GetTeamByName(ctx, teamName)
+	if err != nil {
+		return 0, err
+	}
+	count, err := q.CountMergedReviewsByTeam(ctx, team.ID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count merged reviews for team: %w", err)
+	}
+	return int(count), nil
+}
+
+func (r *Repository) GetOpenReviewCountForUser(ctx context.Context, userID string) (int, error) {
+	q := r.querier(nil)
+	count, err := q.CountOpenReviewsByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count open reviews for user: %w", err)
+	}
+	return int(count), nil
+}
+
+func (r *Repository) GetMergedReviewCountForUser(ctx context.Context, userID string) (int, error) {
+	q := r.querier(nil)
+	count, err := q.CountMergedReviewsByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count merged reviews for user: %w", err)
+	}
+	return int(count), nil
 }

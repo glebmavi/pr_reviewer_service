@@ -28,7 +28,7 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
-		logger.Warn("Error loading .env file, using environment variables")
+		logger.Warn("Error loading .env file, using environment variables. In prod should be ok.")
 	}
 
 	dbURL := os.Getenv("APP_DB_URL")
@@ -51,10 +51,13 @@ func main() {
 	logger.Info("database connection pool established")
 
 	repository := postgres.NewRepository(dbPool, logger.With("layer", "repository"))
-	teamService := app.NewTeamService(repository, repository, repository, repository, logger.With("service", "team"))
-	pullRequestService := app.NewPullRequestService(repository, repository, repository, logger.With("service", "pr"))
 
-	handler := http.NewHandler(teamService, pullRequestService, logger.With("layer", "http"))
+	pullRequestService := app.NewPullRequestService(repository, repository, repository, repository, logger.With("service", "pr"))
+	teamService := app.NewTeamService(repository, repository, pullRequestService, repository, logger.With("service", "team"))
+	userService := app.NewUserService(repository, repository, pullRequestService, repository, logger.With("service", "user"))
+	statsService := app.NewStatsService(repository, logger.With("service", "stats"))
+
+	handler := http.NewHandler(teamService, pullRequestService, userService, statsService, logger.With("layer", "http"))
 	router := http.NewRouter(handler)
 
 	server := &stdhttp.Server{

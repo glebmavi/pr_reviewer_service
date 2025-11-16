@@ -39,8 +39,14 @@ type PullRequestRepository interface {
 	RemoveReviewer(ctx context.Context, tx pgx.Tx, prID string, userID string) error
 	AssignReviewers(ctx context.Context, tx pgx.Tx, prID string, userIDs []string) error
 	GetOpenPRsByReviewer(ctx context.Context, tx pgx.Tx, userID string) ([]PullRequest, error)
+	GetPRsByReviewer(ctx context.Context, userID string) ([]PullRequest, error)
+	GetOpenPRsWithoutReviewers(ctx context.Context) ([]PullRequest, error)
 }
 
 type StatsRepository interface {
-	// TODO: Add stats methods
+	GetReviewStats(ctx context.Context) ([]StatItem, error)
+	GetOpenReviewCountForTeam(ctx context.Context, teamName string) (int, error)
+	GetMergedReviewCountForTeam(ctx context.Context, teamName string) (int, error)
+	GetOpenReviewCountForUser(ctx context.Context, userID string) (int, error)
+	GetMergedReviewCountForUser(ctx context.Context, userID string) (int, error)
 }

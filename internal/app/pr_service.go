@@ -2,16 +2,20 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
-	"github.com/glebmavi/pr_reviewer_service/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/glebmavi/pr_reviewer_service/internal/domain"
 )
 
 type PullRequestService struct {
 	prRepo   domain.PullRequestRepository
 	userRepo domain.UserRepository
+	teamRepo domain.TeamRepository
 	tx       domain.Transactor
 	log      *slog.Logger
 }
@@ -19,12 +23,14 @@ type PullRequestService struct {
 func NewPullRequestService(
 	prRepo domain.PullRequestRepository,
 	userRepo domain.UserRepository,
+	teamRepo domain.TeamRepository,
 	tx domain.Transactor,
 	log *slog.Logger,
 ) *PullRequestService {
 	return &PullRequestService{
 		prRepo:   prRepo,
 		userRepo: userRepo,
+		teamRepo: teamRepo,
 		tx:       tx,
 		log:      log,
 	}
@@ -44,7 +50,11 @@ func (s *PullRequestService) CreatePR(ctx context.Context, name, authorID string
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer s.tx.RollbackTx(ctx, tx)
+	defer func(tx2 domain.Transactor, ctx context.Context, tx pgx.Tx) {
+		if err := tx2.RollbackTx(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			s.log.Error("failed to rollback transaction", "error", err)
+		}
+	}(s.tx, ctx, tx)
 
 	prToCreate := &domain.PullRequest{
 		ID:       uuid.New().String(),
@@ -116,7 +126,11 @@ func (s *PullRequestService) MergePR(ctx context.Context, prID string) (*domain.
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer s.tx.RollbackTx(ctx, tx)
+	defer func(tx2 domain.Transactor, ctx context.Context, tx pgx.Tx) {
+		if err := tx2.RollbackTx(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			s.log.Error("failed to rollback transaction", "error", err)
+		}
+	}(s.tx, ctx, tx)
 
 	mergedPR, err := s.prRepo.MergePR(ctx, tx, prID)
 	if err != nil {
@@ -130,15 +144,51 @@ func (s *PullRequestService) MergePR(ctx context.Context, prID string) (*domain.
 	return mergedPR, nil
 }
 
-// TODO: fix returns, they should match the definition
-func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, oldUserID string) (*domain.PullRequest, newReviewerID string, error) {
+func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, oldUserID string) (*domain.PullRequest, string, error) {
 	pr, err := s.GetPR(ctx, prID)
 	if err != nil {
 		return nil, "", err
 	}
 
+	if err := s.validateReassignment(pr, oldUserID); err != nil {
+		return nil, "", err
+	}
+
+	author, err := s.userRepo.GetUserByID(ctx, pr.AuthorID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get author: %w", err)
+	}
+
+	tx, err := s.tx.BeginTx(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func(tx2 domain.Transactor, ctx context.Context, tx pgx.Tx) {
+		if err := tx2.RollbackTx(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			s.log.Error("failed to rollback transaction", "error", err)
+		}
+	}(s.tx, ctx, tx)
+
+	newReviewerID, err := s.reassignReviewerInTx(ctx, tx, pr, oldUserID, author)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err := s.tx.CommitTx(ctx, tx); err != nil {
+		return nil, "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	retPR, err := s.GetPR(ctx, prID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return retPR, newReviewerID, nil
+}
+
+func (s *PullRequestService) validateReassignment(pr *domain.PullRequest, oldUserID string) error {
 	if !pr.CanChangeReviewers() {
-		return nil, "", domain.ErrPRMerged
+		return domain.ErrPRMerged
 	}
 
 	isAssigned := false
@@ -149,22 +199,14 @@ func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, 
 		}
 	}
 	if !isAssigned {
-		return nil, fmt.Errorf("%w: user %s", domain.ErrNotAssigned, oldUserID)
+		return fmt.Errorf("%w: user %s", domain.ErrNotAssigned, oldUserID)
 	}
+	return nil
+}
 
-	author, err := s.userRepo.GetUserByID(ctx, pr.AuthorID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get author: %w", err)
-	}
-
-	tx, err := s.tx.BeginTx(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer s.tx.RollbackTx(ctx, tx)
-
-	if err := s.prRepo.RemoveReviewer(ctx, tx, prID, oldUserID); err != nil {
-		return nil, fmt.Errorf("failed to remove reviewer: %w", err)
+func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx, pr *domain.PullRequest, oldUserID string, author *domain.User) (string, error) {
+	if err := s.prRepo.RemoveReviewer(ctx, tx, pr.ID, oldUserID); err != nil {
+		return "", fmt.Errorf("failed to remove reviewer: %w", err)
 	}
 
 	currentReviewerIDs := make([]string, 0, len(pr.Reviewers)-1)
@@ -177,21 +219,87 @@ func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, 
 	excludeIDs := append(currentReviewerIDs, oldUserID)
 	candidates, err := s.userRepo.FindReviewCandidates(ctx, author.TeamID, pr.AuthorID, excludeIDs, 1)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find new candidate: %w", err)
+		return "", fmt.Errorf("failed to find new candidate: %w", err)
 	}
 
-	if len(candidates) > 0 {
-		newReviewerID := candidates[0].ID
-		if err := s.prRepo.AssignReviewers(ctx, tx, prID, []string{newReviewerID}); err != nil {
-			return nil, fmt.Errorf("failed to assign new reviewer: %w", err)
+	if len(candidates) == 0 {
+		s.log.Warn("no new reviewer found for PR", "pr_id", pr.ID)
+		return "", nil
+	}
+
+	newReviewerID := candidates[0].ID
+	if err := s.prRepo.AssignReviewers(ctx, tx, pr.ID, []string{newReviewerID}); err != nil {
+		return "", fmt.Errorf("failed to assign new reviewer: %w", err)
+	}
+
+	return newReviewerID, nil
+}
+
+func (s *PullRequestService) GetReviewsForUser(ctx context.Context, userID string) ([]domain.PullRequest, error) {
+	return s.prRepo.GetPRsByReviewer(ctx, userID)
+}
+
+func (s *PullRequestService) GetOpenPRsWithoutReviewers(ctx context.Context) ([]domain.PullRequest, error) {
+	return s.prRepo.GetOpenPRsWithoutReviewers(ctx)
+}
+
+func (s *PullRequestService) reassignReviewsForUsers(ctx context.Context, tx pgx.Tx, userIDs []string) (int, error) {
+	reassignedCount := 0
+	for _, userID := range userIDs {
+		prs, err := s.prRepo.GetOpenPRsByReviewer(ctx, tx, userID)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get open PRs for user %s: %w", userID, err)
+		}
+
+		for _, pr := range prs {
+			if err := s.prRepo.RemoveReviewer(ctx, tx, pr.ID, userID); err != nil {
+				return 0, fmt.Errorf("failed to remove reviewer %s from PR %s: %w", userID, pr.ID, err)
+			}
+
+			currentReviewers, err := s.prRepo.GetReviewers(ctx, pr.ID)
+			if err != nil {
+				return 0, fmt.Errorf("failed to get reviewers for PR %s: %w", pr.ID, err)
+			}
+
+			if len(currentReviewers) == 0 {
+				author, err := s.userRepo.GetUserByID(ctx, pr.AuthorID)
+				if err != nil {
+					return 0, fmt.Errorf("failed to get author for PR %s: %w", pr.ID, err)
+				}
+
+				authorTeam, err := s.teamRepo.GetTeamByID(ctx, author.TeamID)
+				if err != nil {
+					return 0, fmt.Errorf("failed to get author's team for PR %s: %w", pr.ID, err)
+				}
+
+				if authorTeam.IsActive {
+					excludeIDs := currentReviewersToIDs(currentReviewers)
+					candidates, err := s.userRepo.FindReviewCandidates(ctx, author.TeamID, pr.AuthorID, excludeIDs, maxReviewers-len(currentReviewers))
+					if err != nil {
+						return 0, fmt.Errorf("failed to find review candidates for PR %s: %w", pr.ID, err)
+					}
+
+					if len(candidates) > 0 {
+						candidateIDs := make([]string, len(candidates))
+						for i, c := range candidates {
+							candidateIDs[i] = c.ID
+						}
+						if err := s.prRepo.AssignReviewers(ctx, tx, pr.ID, candidateIDs); err != nil {
+							return 0, fmt.Errorf("failed to assign new reviewers for PR %s: %w", pr.ID, err)
+						}
+						reassignedCount++
+					}
+				}
+			}
 		}
 	}
+	return reassignedCount, nil
+}
 
-	if err := s.tx.CommitTx(ctx, tx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+func currentReviewersToIDs(reviewers []domain.User) []string {
+	ids := make([]string, len(reviewers))
+	for i, r := range reviewers {
+		ids[i] = r.ID
 	}
-
-	retPR, err := s.GetPR(ctx, prID)
-
-	return retPR, newReviewerID, nil
+	return ids
 }

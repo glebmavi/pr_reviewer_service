@@ -15,6 +15,13 @@ linters:
   settings:
     gocyclo:
       min-complexity: 15
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+
   exclusions:
     paths:
       - pkg/api

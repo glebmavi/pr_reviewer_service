@@ -65,3 +65,8 @@ type Reviewer struct {
 func (pr *PullRequest) CanChangeReviewers() bool {
 	return pr.Status != StatusMerged
 }
+
+type StatItem struct {
+	ReviewCount int64
+	UserID      string
+}

@@ -121,7 +121,7 @@ func (h *Handler) PostUsersAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.teamSvc.AddUser(r.Context(), req.Username, req.TeamName, req.IsActive) // TODO: AddUser missing. Should be in new UserSvc
+	user, err := h.userSvc.AddUser(r.Context(), req.Username, req.TeamName, req.IsActive)
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -145,7 +145,7 @@ func (h *Handler) PostUsersEdit(w http.ResponseWriter, r *http.Request) {
 		IsActive: req.IsActive,
 	}
 
-	updatedUser, err := h.teamSvc.UpdateUser(r.Context(), user) // TODO: UpdateUser missing. Should be in new UserSvc
+	updatedUser, err := h.userSvc.UpdateUser(r.Context(), user)
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -162,7 +162,7 @@ func (h *Handler) PostUsersMoveToTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.teamSvc.MoveUserToTeam(r.Context(), req.UserId, req.NewTeamName)
+	user, err := h.userSvc.MoveUserToTeam(r.Context(), req.UserId, req.NewTeamName)
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -179,7 +179,7 @@ func (h *Handler) PostUsersSetIsActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.teamSvc.SetUserActiveStatus(r.Context(), req.UserId, req.IsActive)
+	user, err := h.userSvc.SetUserActiveStatus(r.Context(), req.UserId, req.IsActive)
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -190,7 +190,7 @@ func (h *Handler) PostUsersSetIsActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetUsersGetReview(w http.ResponseWriter, r *http.Request, params api.GetUsersGetReviewParams) {
-	prs, err := h.prSvc.GetReviewsForUser(r.Context(), params.UserId) // TODO: GetReviewsForUser missing. Should be in prSvc
+	prs, err := h.prSvc.GetReviewsForUser(r.Context(), params.UserId)
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -282,7 +282,7 @@ func (h *Handler) PostPullRequestReassign(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) GetPullRequestOpenWithoutReviewers(w http.ResponseWriter, r *http.Request) {
-	prs, err := h.prSvc.GetOpenPRsWithoutReviewers(r.Context()) // TODO: GetOpenPRsWithoutReviewers missing. Should be in prSvc
+	prs, err := h.prSvc.GetOpenPRsWithoutReviewers(r.Context())
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -300,7 +300,7 @@ func (h *Handler) GetPullRequestOpenWithoutReviewers(w http.ResponseWriter, r *h
 // --- Stats ---
 
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.prSvc.GetStats(r.Context()) // TODO: GetStats missing. Should be in statsSvc
+	stats, err := h.statsSvc.GetStats(r.Context())
 	if err != nil {
 		h.handleServiceError(w, r, err)
 		return
@@ -319,19 +319,19 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetStatsTeamTeamNameOpenReviewCount(w http.ResponseWriter, r *http.Request, teamName api.TeamNameParam) {
-	h.getReviewCount(r.Context(), w, r, h.prSvc.GetOpenReviewCountForTeam, teamName) // TODO: GetOpenReviewCountForTeam missing. Should be in statsSvc
+	h.getReviewCount(r.Context(), w, r, h.statsSvc.GetOpenReviewCountForTeam, teamName)
 }
 
 func (h *Handler) GetStatsTeamTeamNameMergedReviewCount(w http.ResponseWriter, r *http.Request, teamName api.TeamNameParam) {
-	h.getReviewCount(r.Context(), w, r, h.prSvc.GetMergedReviewCountForTeam, teamName) // TODO: GetMergedReviewCountForTeam missing. Should be in statsSvc
+	h.getReviewCount(r.Context(), w, r, h.statsSvc.GetMergedReviewCountForTeam, teamName)
 }
 
 func (h *Handler) GetStatsUserUserIdOpenReviewCount(w http.ResponseWriter, r *http.Request, userId api.UserIdParam) {
-	h.getReviewCount(r.Context(), w, r, h.prSvc.GetOpenReviewCountForUser, userId) // TODO: GetOpenReviewCountForUser missing. Should be in statsSvc
+	h.getReviewCount(r.Context(), w, r, h.statsSvc.GetOpenReviewCountForUser, userId)
 }
 
 func (h *Handler) GetStatsUserUserIdMergedReviewCount(w http.ResponseWriter, r *http.Request, userId api.UserIdParam) {
-	h.getReviewCount(r.Context(), w, r, h.prSvc.GetMergedReviewCountForUser, userId) // TODO: GetMergedReviewCountForUser missing. Should be in statsSvc
+	h.getReviewCount(r.Context(), w, r, h.statsSvc.GetMergedReviewCountForUser, userId)
 }
 
 func (h *Handler) getReviewCount(ctx context.Context, w http.ResponseWriter, r *http.Request, countFn func(context.Context, string) (int, error), param string) {
