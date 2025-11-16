@@ -106,12 +106,14 @@
     *   `POST /team/deactivate`: массовая деактивация команды и переназначение ревью (доп. задание).
     *   `POST /team/edit`: изменение имени команды.
     *   `POST /users/add`, `POST /users/edit`, `POST /users/moveToTeam`: более гранулярное управление пользователями.
+    *   `GET /users/get/{user_id}`: получение пользователя по ID.
 
-*   **Добавлен эндпоинт для поиска проблемных PR**:
+*   **Добавлены эндпоинты для управления Pull Request'ами**:
+    *   `POST /pullRequest/assign`: ручное назначение ревьюера на PR.
     *   `GET /pullRequest/open-without-reviewers`: получение списка открытых PR без назначенных ревьюеров.
 
 *   **Изменены существующие эндпоинты**:
-    *   В `POST /pullRequest/create` убрано поле `pull_request_id` из тела запроса. ID генерируется сервисом, а не клиентом.
+    *   В `POST /pullRequest/create` убрано поле `pull_request_id` из тела запроса.
     *   В `POST /team/add` в модели `TeamMember` поле `is_active` сделано необязательным и по умолчанию `true`.
 
 ### 2. Проработка логики и пограничных случаев

@@ -196,11 +196,8 @@ func (r *Repository) SetUserActiveStatus(ctx context.Context, tx pgx.Tx, userID 
 		}
 		return nil, domain.ErrInternalError
 	}
-	user, err := r.GetUserByID(ctx, dbUser.UserID)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
+
+	return &domain.User{ID: dbUser.UserID, Username: dbUser.Username, TeamID: dbUser.TeamID, IsActive: dbUser.IsActive}, nil
 }
 
 func (r *Repository) MoveUserToTeam(ctx context.Context, tx pgx.Tx, userID string, newTeamID int32) (*domain.User, error) {

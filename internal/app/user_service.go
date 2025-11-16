@@ -76,6 +76,10 @@ func (s *UserService) AddUser(ctx context.Context, username, teamName string, is
 	return createdUser, nil
 }
 
+func (s *UserService) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
+	return s.userRepo.GetUserByID(ctx, userID)
+}
+
 func (s *UserService) UpdateUser(ctx context.Context, user *domain.User) (*domain.User, error) {
 	if user.ID == "" {
 		return nil, fmt.Errorf("%w: user ID is required", domain.ErrValidation)
@@ -159,10 +163,18 @@ func (s *UserService) SetUserActiveStatus(ctx context.Context, userID string, is
 		return nil, err
 	}
 
+	prs, err := s.prSvc.GetReviewsForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	if !isActive {
-		if _, err := s.prSvc.reassignReviewsForUsers(ctx, tx, []string{userID}); err != nil {
-			return nil, err
+		for _, pr := range prs {
+			if _, err := s.prSvc.reassignReviewerInTx(ctx, tx, &pr, userID); err != nil {
+				return nil, err
+			}
 		}
+
 	}
 
 	if err := s.tx.CommitTx(ctx, tx); err != nil {

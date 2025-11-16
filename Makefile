@@ -28,6 +28,9 @@ generate:
 build-docker:
 	docker-compose build
 
+build-docker-test:
+	docker-compose -f docker-compose.test.yml build
+
 up:
 	docker-compose up --build -d
 
@@ -46,11 +49,11 @@ docker-check: ## Проверка, запущен ли Docker
 	@docker info > /dev/null 2>&1 || (echo "Ошибка: Docker не запущен" && exit 1)
 	@echo "✓ Docker запущен"
 
-test: docker-check ## Запуск E2E тестов
+test: docker-check build-docker-test ## Запуск E2E тестов
 	@echo "Запуск E2E тестов..."
 	go test -v ./... -timeout 10m
 
-test-coverage: docker-check ## Запуск E2E тестов с отчетом о покрытии
+test-coverage: docker-check build-docker-test ## Запуск E2E тестов с отчетом о покрытии
 	@echo "Запуск E2E тестов с покрытием..."
 	go test ./... -v -timeout 10m -coverprofile=coverage.out
 	@echo "Генерация HTML отчета о покрытии..."

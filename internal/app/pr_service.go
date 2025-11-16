@@ -206,11 +206,6 @@ func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, 
 		return nil, "", err
 	}
 
-	author, err := s.userRepo.GetUserByID(ctx, pr.AuthorID)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get author: %w", err)
-	}
-
 	tx, err := s.tx.BeginTx(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to begin transaction: %w", err)
@@ -221,7 +216,7 @@ func (s *PullRequestService) ReassignReviewer(ctx context.Context, prID string, 
 		}
 	}(s.tx, ctx, tx)
 
-	newReviewerID, err := s.reassignReviewerInTx(ctx, tx, pr, oldUserID, author)
+	newReviewerID, err := s.reassignReviewerInTx(ctx, tx, pr, oldUserID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -251,12 +246,12 @@ func (s *PullRequestService) validateReassignment(pr *domain.PullRequest, oldUse
 		}
 	}
 	if !isAssigned {
-		return fmt.Errorf("%w: user %s", domain.ErrNotAssigned, oldUserID)
+		return fmt.Errorf("%w: user %s, PR %s", domain.ErrNotAssigned, oldUserID, pr.ID)
 	}
 	return nil
 }
 
-func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx, pr *domain.PullRequest, oldUserID string, author *domain.User) (string, error) {
+func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx, pr *domain.PullRequest, oldUserID string) (string, error) {
 	if err := s.prRepo.RemoveReviewer(ctx, tx, pr.ID, oldUserID); err != nil {
 		return "", fmt.Errorf("failed to remove reviewer: %w", err)
 	}
@@ -266,6 +261,10 @@ func (s *PullRequestService) reassignReviewerInTx(ctx context.Context, tx pgx.Tx
 		if r.ID != oldUserID {
 			currentReviewerIDs = append(currentReviewerIDs, r.ID)
 		}
+	}
+	author, err := s.userRepo.GetUserByID(ctx, pr.AuthorID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get author: %w", err)
 	}
 
 	excludeIDs := append(currentReviewerIDs, oldUserID)

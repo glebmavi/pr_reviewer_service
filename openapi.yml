@@ -66,6 +66,7 @@ components:
                 - NO_CANDIDATE
                 - NOT_FOUND
                 - VALIDATION_ERROR
+                - USER_NOT_ACTIVE
                 - INTERNAL_ERROR
             message:
               type: string
@@ -368,7 +369,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
-
+  /users/get/{user_id}:
+    get:
+      tags: [Users]
+      summary: Получить пользователя по ID
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Объект пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /users/edit:
     post:
       tags: [Users]
@@ -578,6 +596,47 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /pullRequest/assign:
+    post:
+      tags: [PullRequests]
+      summary: Назначить ревьювера на PR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pull_request_id, user_id ]
+              properties:
+                pull_request_id: { type: string }
+                user_id: { type: string }
+      responses:
+        '200':
+          description: Ревьювер назначен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullRequest'
+        '404':
+          description: PR или пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Нарушение доменных правил назначения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                merged:
+                  summary: Нельзя назначать на MERGED PR
+                  value:
+                    error: { code: PR_MERGED, message: cannot assign on merged PR }
+                notActive:
+                  summary: Пользователь неактивен
+                  value:
+                    error: { code: USER_NOT_ACTIVE, message: user is not active }
 
   /pullRequest/reassign:
     post:

@@ -131,6 +131,17 @@ func (h *Handler) PostUsersAdd(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, userToAPI(user))
 }
 
+func (h *Handler) GetUsersGetUserId(w http.ResponseWriter, r *http.Request, userId api.UserIdParam) {
+	user, err := h.userSvc.GetUserByID(r.Context(), userId)
+	if err != nil {
+		h.handleServiceError(w, r, err)
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, userToAPI(user))
+}
+
 func (h *Handler) PostUsersEdit(w http.ResponseWriter, r *http.Request) {
 	var req api.PostUsersEditJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

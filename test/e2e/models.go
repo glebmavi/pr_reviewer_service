@@ -1,7 +1,5 @@
 package e2e
 
-
-// API Models
 type ErrorResponse struct {
 	Error struct {
 		Code    string `json:"code"`
@@ -77,3 +75,7 @@ type TeamDeactivateResponse struct {
 	ReassignedReviewsCount int `json:"reassigned_reviews_count"`
 }
 
+type PostUsersSetIsActiveJSONBody struct {
+	IsActive bool   `json:"is_active"`
+	UserId   string `json:"user_id"`
+}
